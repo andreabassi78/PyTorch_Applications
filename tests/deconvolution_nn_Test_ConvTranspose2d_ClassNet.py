@@ -55,7 +55,7 @@ psf = psf.expand([1,1,K_SIZE,K_SIZE])
 im_blurred = torch.nn.functional.conv2d(im, psf, bias=None, stride=1, padding=PADDING, dilation=1, groups=1).to(device = device)  
 
 #add noise
-#im_blurred += 0.01* torch.randn(im_blurred.shape).to(device = device) 
+im_blurred += 0.01* torch.randn(im_blurred.shape).to(device = device) 
 
 #print('\n im_blurred + noise mean:')
 #print(torch.mean(im_blurred))
@@ -76,8 +76,8 @@ class Net(torch.nn.Module):
         super(Net,self).__init__()
         #this sets the image im_start as a parameter to optimize   
         self.conv_layer = torch.nn.ConvTranspose2d(1,1,IM_SIZE,1,PADDING).to(device = device) 
-        # self.im_optim = torch.nn.Parameter(im_start.clone())
-        # self.im_optim.requires_grad = True
+        #self.im_optim = torch.nn.Parameter(im_start.clone())
+        #self.im_optim.requires_grad = True
         # #self.bias = torch.nn.Parameter(0.5*torch.ones(1).to(device = device))
         # self.bias = torch.nn.Parameter(0.5*torch.ones(im_start.shape).to(device = device))
         # self.bias.requires_grad = True
@@ -103,9 +103,9 @@ loss_fn = torch.nn.MSELoss(reduction='sum').to(device = device)
 #loss_fn = torch.nn.SmoothL1Loss()
 
 # Use the optim package to define an Optimizer that will update the weights of the model for us. 
-optimizer = torch.optim.Adam(net.parameters(), lr=0.1)
+#optimizer = torch.optim.Adam(net.parameters(), lr=0.1)
 #optimizer = torch.optim.SGD(net.parameters(), lr=1e-2, momentum=0.8)
-
+optimizer = torch.optim.RMSprop(net.parameters(), lr=0.01, weight_decay=0.01)
 
 #print('w:', net.conv_layer.weight[0].shape)
 
@@ -139,7 +139,7 @@ for t in range(50):
         print('step::', t,'loss:', loss.item())
         plt.figure(figsize=(6, 6))
         plt.title('Deconvolved image, step:' + str(t));  
-        plt.imshow(list(net.parameters())[0].data.squeeze().cpu().numpy(),
+        plt.imshow(net.conv_layer.weight.squeeze().detach().cpu().numpy(),
                    vmin=0,
                    vmax=1)
         plt.pause(0.05)

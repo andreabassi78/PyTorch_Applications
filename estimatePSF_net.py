@@ -18,9 +18,9 @@ else:
     device = torch.device("cpu")
 
 
-K_SIZE = 15 # PSF size
-PADDING = 0
-IM_SIZE = 127 # image size
+K_SIZE = 13 # PSF size
+PADDING = 6
+IM_SIZE = 171# image size
 
 im_np = resize(color.rgb2gray(data.astronaut()), [IM_SIZE,IM_SIZE], mode='constant')
 
@@ -46,7 +46,7 @@ plt.pause(0.05)
 im = torch.from_numpy(im_np).float().to(device = device) 
 psf = torch.from_numpy(psf_np).float().to(device = device) 
 
-print(im.shape)
+
 
 im = im.expand([1,1,IM_SIZE,IM_SIZE]) 
 #don't know why, but I was not able to do the convolution without adding 2 channels with 1 single element 
@@ -71,19 +71,18 @@ print(torch.mean(im_blurred))
 
 # Use the nn package to define our model and loss function.
 model = torch.nn.Sequential(
-    torch.nn.Conv2d(1,1,K_SIZE,1,PADDING), 
+    torch.nn.Conv2d(1,1,K_SIZE,1,PADDING)
+    #torch.nn.ReLU()
     ).to(device = device)  
 
-print(model)
+#model[0].weight.data[0][0][PADDING][PADDING].fill_(0.5)
+#torch.nn.init.dirac_(model[0].weight)
+
 
 loss_fn = torch.nn.MSELoss(reduction='sum')
 #loss_fn = torch.nn.SmoothL1Loss()
 
-# Use the optim package to define an Optimizer that will update the weights of
-# the model for us. Here we will use Adam; the optim package contains many other
-# optimization algoriths. The first argument to the Adam constructor tells the
-# optimizer which Tensors it should update.
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-1)
 #optimizer = torch.optim.ASGD(model.parameters(), lr=1e-6)
 
 
@@ -91,22 +90,23 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
 #these are not even shown in the code
 #they can be extracted as: model[0].weight.data
 for t in range(10000):
+    
     # Forward pass: compute predicted y by passing x to the model.
-   
     im_pred = model(im)
     # Compute and print loss.
     loss = loss_fn(im_pred, im_blurred)
+    
     if t % 100 == 99:
         print(t, loss.item())
         plt.figure(figsize=(6, 6))
         
         weight = model[0].weight.data.cpu().numpy()
-        plt.imshow(weight[0, ...].squeeze())
+        plt.imshow(weight[0].squeeze())
         #plt.imshow(im_pred.squeeze().detach().cpu().numpy())
         plt.pause(0.05) 
-        params = list(model.parameters())
-        print(len(params))
-        print(params[0].size())
+        #params = list(model.parameters())
+        #print(len(params))
+        #print(params[0].size())
 
     optimizer.zero_grad()
 
@@ -123,6 +123,6 @@ weight = model[0].weight.data.cpu().numpy()
 plt.imshow(weight[0, ...].squeeze())
 plt.title('Predicted PSF');
 
-plt.figure(figsize=(6, 6))
-plt.imshow(im_pred.squeeze().detach().cpu().numpy())
-plt.title('Predicted image');
+# plt.figure(figsize=(6, 6))
+# plt.imshow(im_pred.squeeze().detach().cpu().numpy())
+# plt.title('Predicted image');

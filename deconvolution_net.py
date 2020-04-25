@@ -1,9 +1,19 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Apr 24 19:54:13 2020
+
+@author: Andrea Bassi
+"""
+
 import torch
 from skimage import color, data
 from skimage.transform import resize
 import matplotlib.pyplot as plt
 import scipy.ndimage.filters as fi
 import numpy as np
+import time
+
+
 
 dtype = torch.float
 
@@ -11,6 +21,9 @@ if torch.cuda.is_available():
     device = torch.device("cuda")
 else:
     device = torch.device("cpu")
+
+print('\n Using device:', device, '\n')    
+    
 
 K_SIZE = 13 # PSF size
 PADDING = 6 # this should be K_SIZE/2, rounded towards 0
@@ -53,7 +66,7 @@ psf = psf.expand([1,1,K_SIZE,K_SIZE])
 im_blurred = torch.nn.functional.conv2d(im, psf, bias=None, stride=1, padding=PADDING, dilation=1, groups=1).to(device = device)  
 
 #add noise
-#im_blurred += 0.1* torch.randn(im_blurred.shape).to(device = device) 
+im_blurred += 0.01* torch.randn(im_blurred.shape).to(device = device) 
 
 #print('\n im_blurred + noise mean:')
 #print(torch.mean(im_blurred))
@@ -69,6 +82,7 @@ plt.pause(0.05)
 """
 
 net = torch.nn.Sequential(
+    # torch.nn.ReLU(),
     torch.nn.ConvTranspose2d(1,1,IM_SIZE,1,PADDING).to(device = device)
     # other layers could be added here, separated by comma
 )
@@ -82,11 +96,15 @@ print('\nNumber of parameters:', len(params), '\nSize of the first parameter:', 
 loss_fn = torch.nn.MSELoss(reduction='sum').to(device = device)
 #loss_fn = torch.nn.SmoothL1Loss()
 
-# Use the optim package to define an Optimizer that will update the weights of the model for us. 
-optimizer = torch.optim.Adam(net.parameters(), lr=0.1)
-#optimizer = torch.optim.SGD(net.parameters(), lr=1e-4, momentum=0.6)
 
-for t in range(50):
+# Use the optim package to define an Optimizer that will update the weights of the model for us. 
+#optimizer = torch.optim.Adam(net.parameters(), lr=0.01, weight_decay=0.001)
+#optimizer = torch.optim.SGD(net.parameters(), lr=1e-5, weight_decay=0.01)
+optimizer = torch.optim.RMSprop(net.parameters(), lr=0.01, weight_decay=0.01)
+
+t0= time.time()
+
+for t in range(3000):
     '''
     Forward pass: compute predicted blurred image by passing the psf.
     The reconstructed image is stored inside the net and can be called in one 
@@ -100,7 +118,7 @@ for t in range(50):
     im_pred = net(psf)
     
     # Compute and print loss.
-    loss = loss_fn(im_pred, im_blurred)
+    loss = loss_fn(im_pred, im_blurred)#+loss_fn2(im_pred, im_blurred)
         
     optimizer.zero_grad()
 
@@ -110,23 +128,27 @@ for t in range(50):
     # Calling the step function on an Optimizer makes an update to its parameters
     optimizer.step()
     
-    if t % 5 == 4: #print loss and show image only sometimes
+    if t % 100 == 99: #print loss and show image only sometimes
         
         print('step:',t,
               ',loss:', loss.item()
              )
         
-        plt.figure(figsize=(6, 6))
-        plt.title('Deconvolved image, step:' + str(t));  
-        plt.imshow(list(net.parameters())[0].data.squeeze().cpu().numpy(),
-                   vmin=0,
-                   vmax=1)
-        plt.pause(0.05)
+        # plt.figure(figsize=(6, 6))
+        # plt.title('Deconvolved image, step:' + str(t));  
+        # plt.imshow(list(net.parameters())[0].data.squeeze().cpu().numpy(),
+        #            vmin=0,
+        #            vmax=1)
+        # plt.pause(0.05)
 
 plt.figure(figsize=(6, 6))
-plt.imshow(net[0].weight.squeeze().detach().cpu().numpy(),vmin=0,vmax=1)
-plt.title('Deconvolved image (final)');
+plt.imshow(net[0].weight.squeeze().detach().cpu().numpy())
+plt.title('Deconvolved image (autoscale)');
+
+print('\nElapsed time:', time.time()-t0)    
 
 del net,im,im_blurred,im_pred
 if torch.cuda.is_available():
     torch.cuda.empty_cache()
+    
+    
