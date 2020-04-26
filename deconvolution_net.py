@@ -13,8 +13,6 @@ import scipy.ndimage.filters as fi
 import numpy as np
 import time
 
-
-
 dtype = torch.float
 
 if torch.cuda.is_available():
@@ -22,36 +20,45 @@ if torch.cuda.is_available():
 else:
     device = torch.device("cpu")
 
-print('\n Using device:', device, '\n')    
-    
+print('\n Using device:', device, '\n')  
 
 K_SIZE = 13 # PSF size
-PADDING = 6 # this should be K_SIZE/2, rounded towards 0
-IM_SIZE = 171 # image size
+PADDING = 6 # should be K_SIZE
+IM_SIZE = 171# image size
 
 im_np = resize(color.rgb2gray(data.astronaut()), [IM_SIZE,IM_SIZE], mode='constant')
-im_np = im_np/np.amax(im_np)
+im_np = im_np /np.amax(im_np)
+
 plt.figure(figsize=(6, 6))
 plt.gray()
-plt.imshow(im_np,vmin=0,vmax=1)
+plt.imshow(im_np)
 plt.title('Original image')
 
-def gaussian(kernlen, nsig_x, nsig_y):
-    inp = np.zeros((kernlen, kernlen))
-    inp[kernlen//2, kernlen//2] = 1
-    kern = fi.gaussian_filter(inp, (nsig_x, nsig_y))
-    scaled_kern = kern / np.sum(kern)
-    return scaled_kern
+def gaussian(kernlen, Wx, Wy):
+    x_lin = y_lin = np.linspace(-K_SIZE/2, K_SIZE/2, K_SIZE)
+    X_np, Y_np = np.meshgrid(x_lin,y_lin)
+    X0 = 0
+    Y0 = 0
+    kern = 1.0 * np.exp( - ((X_np-X0)**2)/Wx**2 
+                         - ((Y_np-Y0)**2)/Wy**2 )
+    kern = kern/np.sum(kern)
+    return kern, X_np, Y_np
 
-psf_np = gaussian(kernlen=K_SIZE, nsig_x=1, nsig_y=3)
+Wx = 4. # pixel unit
+Wy = 2. # pixel unit
+
+psf_np, _, _ = gaussian(K_SIZE, Wx, Wy)
+
+print('PSF:',
+      '\n --> Amplitude =', np.amax(psf_np),
+      '\n --> Waist x =', Wx,
+      '\n --> Waist y =', Wy,
+      '\n')
 
 plt.figure(figsize=(6, 6))
 plt.imshow(psf_np)
 plt.title('Gaussian point spread function');
 plt.pause(0.05)
-
-
-print(im_np.sum())
 
 im = torch.from_numpy(im_np).float().to(device = device) 
 psf = torch.from_numpy(psf_np).float().to(device = device) 
@@ -66,7 +73,7 @@ psf = psf.expand([1,1,K_SIZE,K_SIZE])
 im_blurred = torch.nn.functional.conv2d(im, psf, bias=None, stride=1, padding=PADDING, dilation=1, groups=1).to(device = device)  
 
 #add noise
-im_blurred += 0.01* torch.randn(im_blurred.shape).to(device = device) 
+#im_blurred += 0.01* torch.randn(im_blurred.shape).to(device = device) 
 
 #print('\n im_blurred + noise mean:')
 #print(torch.mean(im_blurred))
@@ -87,7 +94,7 @@ net = torch.nn.Sequential(
     # other layers could be added here, separated by comma
 )
 
-print(net)
+#print(net)
 
 params = list(net.parameters())
 print('\nNumber of parameters:', len(params), '\nSize of the first parameter:', params[0].size(),'\n')
@@ -100,11 +107,11 @@ loss_fn = torch.nn.MSELoss(reduction='sum').to(device = device)
 # Use the optim package to define an Optimizer that will update the weights of the model for us. 
 #optimizer = torch.optim.Adam(net.parameters(), lr=0.01, weight_decay=0.001)
 #optimizer = torch.optim.SGD(net.parameters(), lr=1e-5, weight_decay=0.01)
-optimizer = torch.optim.RMSprop(net.parameters(), lr=0.01, weight_decay=0.01)
+optimizer = torch.optim.RMSprop(net.parameters(), lr=0.001, weight_decay=0.01)
 
 t0= time.time()
 
-for t in range(3000):
+for t in range(1000):
     '''
     Forward pass: compute predicted blurred image by passing the psf.
     The reconstructed image is stored inside the net and can be called in one 
