@@ -1,4 +1,9 @@
 '''
+Created on Fri Apr 26 18:45:20 2020
+
+@author: Andrea Bassi
+
+
 Estimates the PSF given one blurred image and the corresponging ground truth image.
 It assumes that the PSF is a 2D gaussian function
 
@@ -42,7 +47,7 @@ def gaussian(kernlen, A, Wx, Wy):
 
 Wx = 5. # pixel unit
 Wy = 2. # pixel unit
-A = 1. # amplitude 
+A = 1 # amplitude 
 
 psf_np, X_np, Y_np = gaussian(K_SIZE, A, Wx, Wy)
 
@@ -73,7 +78,7 @@ im_blurred = torch.nn.functional.conv2d(im, psf,
                                         bias=None, stride=1, padding=PADDING,
                                         dilation=1, groups=1
                                         ).to(device = device)  
-#add noise
+#add noise to the blurred image
 im_blurred += 0.1* torch.randn(im_blurred.shape).to(device = device) 
 
 plt.figure(figsize=(6, 6))
@@ -115,7 +120,7 @@ class Net(torch.nn.Module):
         print_values(self.val.detach().cpu().numpy(), title)
         
 # use reasonable initialization values 
-amplitude_guess = 1.
+amplitude_guess = 0.5
 waistx_guess = 1.
 waisty_guess = 1.
  
@@ -149,10 +154,10 @@ for t in range(1500):
     loss = loss_fn(im_pred, im_blurred)
     if t % 100 == 99:
         
-        print('step:',t,
-              ',loss:', loss.item(),
+        print('\r', 'step:',t,
+              ',loss:', loss.item(), end = ''
              )
-        
+
         # psf_pred = net.psf_pred.squeeze().detach().cpu().numpy()
         # plt.figure(figsize=(6, 6))
         # plt.title('Predicted PSF, step:' +str(t));    
@@ -174,6 +179,8 @@ for t in range(1500):
                 Print and show the data
                 
 """
+print()
+
 print_values([A,Wx,Wy], 'True values:')
 
 net.print_net_values('Fitted values:')    

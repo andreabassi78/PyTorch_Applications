@@ -4,18 +4,17 @@ Created on Fri Apr 25 19:04:17 2020
 
 @author: Andrea Bassi
 
-Fits a 2D gaussian function with added noise to retrieve its 
-amplitude, waist a baseline level.
+Fits a 2D gaussian function with added noise to retrieve its amplitude, waist,
+and a baseline level.
 
 Solves an inverse problem using a commonly used optimizer and loss function. 
-It is based on a custumized layer of Pytorch. 
+It is implemented using a custumized layer of Pytorch. 
 
 """
 
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-
 
 #if torch.cuda.is_available():
 #    device = torch.device("cuda")
@@ -34,7 +33,7 @@ Y0 = 0
 A = 1 # amplitude
 W = 4 # waist (in pixels unit)
 B = 0.2 # bias/baseline
-N = 0.4 # noise amplitude
+N = 0.4 # noise 
 
 def print_values(values, title=''):
     print('\n', title, 'values:'
@@ -46,17 +45,23 @@ def print_values(values, title=''):
 
 print_values([A,W,B], 'True')
 
+# generate the true gaussian function 
 Z_np = A * np.exp((- (X_np-X0)**2 - (Y_np-Y0)**2)/W**2)
-Z_np += B + N * (np.random.random(size = Z_np.shape)-0.5) #white noise
+# add noise with uniform distribution between -N/2 and N/2
+Z_np += B + N * (np.random.random(size = Z_np.shape)-0.5)
 
 x = torch.from_numpy(X_np).float().to(device = device)
 y = torch.from_numpy(Y_np).float().to(device = device)
 z = torch.from_numpy(Z_np).float().to(device = device) 
 
-# Define a net. 
-# Here I don't really exploit the layers of Pytorch,
-# I define a custom layer with parameters self.val 
-# that are optimized using the gaussian forward 
+"""
+                         Define a net
+                         
+Here I don't really exploit the layers of Pytorch, I define a custom layer with
+parameters self.val that are optimized using the gaussian forward 
+
+"""
+
 class Net(torch.nn.Module):
 
     def __init__(self, val_in):
@@ -99,7 +104,11 @@ loss_fn = torch.nn.MSELoss(reduction='sum')
 
 optimizer = torch.optim.Adam(net.parameters(), lr=0.02, weight_decay=0.1)
 
-# start the optimization
+"""
+
+                     Start the optimization
+
+"""
 for t in range(50):
     
     # Forward pass: compute predicted y by passing x to the model.
@@ -111,8 +120,9 @@ for t in range(50):
     if t % 5 == 4:
         
         print('step:',t,
-              ',loss:', loss.item(),
+              ',loss:', loss.item()
              )
+        
 
     optimizer.zero_grad()
 
